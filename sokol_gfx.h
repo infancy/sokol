@@ -1165,6 +1165,7 @@ typedef struct {
     mipmap level.
 */
 typedef struct {
+    // subimage[face_index][mip_index] 那个面的第几个 mipmaps
     sg_subimage_content subimage[SG_CUBEFACE_NUM][SG_MAX_MIPMAPS];
 } sg_image_content;
 
@@ -1304,7 +1305,7 @@ typedef struct {
     - rasterizer state
 
     If the vertex data has no gaps between vertex components, you can omit
-    the .layout.buffers[].stride and layout.attrs[].offset items (leave them 
+    the .layout.buffers[].stride and .layout.attrs[].offset items (leave them 
     default-initialized to 0), sokol will then compute the offsets and strides
     from the vertex component formats (.layout.attrs[].offset). Please note
     that ALL vertex attribute offsets must be 0 in order for the the
@@ -1313,17 +1314,28 @@ typedef struct {
     The default configuration is as follows:
 
     .layout:
+        // instancing-d3d11.c
+        // **如果顶点数据之间无空隙**，则可以忽略 stride 和 offset，只需要根据顶点属性的类型就可以计算这两项
+        // 可以忽略 name、sem_name、sem_index，着色器有固定的位置进行绑定 
+
+        // // 在 draw_state 里可以传递多个 buffer，这里指定每个 buffer 的数据，同时 attrs 的 buffer_index 关联到这里
         .buffers[]:         vertex buffer layouts
             .stride:        0 (if no stride is given it will be computed)
-            .step_func      SG_VERTEXSTEP_PER_VERTEX
+            
+            .step_func      SG_VERTEXSTEP_PER_VERTEX // 在实例化渲染中会用到
             .step_rate      1
+
         .attrs[]:           vertex attribute declarations
             .buffer_index   0 the vertex buffer bind slot  
-            .offset         0 (offsets can be omitted if the vertex layout has no gaps)
             .format         SG_VERTEXFORMAT_INVALID (must be initialized!)
+
+            .offset         0 (offsets can be omitted if the vertex layout has no gaps)
             .name           0 (GLES2 requires an attribute name here)
             .sem_name       0 (D3D11 requires a semantic name here)
             .sem_index      0 (D3D11 requires a semantic index here)
+
+
+
     .shader:            0 (must be intilized with a valid sg_shader id!)
     .primitive_type:    SG_PRIMITIVETYPE_TRIANGLES
     .index_type:        SG_INDEXTYPE_NONE
@@ -1505,7 +1517,7 @@ extern sg_resource_state sg_query_pipeline_state(sg_pipeline pip);
 extern sg_resource_state sg_query_pass_state(sg_pass pass);
 
 /* rendering functions */
-extern void sg_begin_default_pass(const sg_pass_action* pass_action, int width, int height);
+extern void sg_begin_default_pass(/*sg_pass pass = 0,*/const sg_pass_action* pass_action, int width, int height);
 extern void sg_begin_pass(sg_pass pass, const sg_pass_action* pass_action);
 extern void sg_apply_viewport(int x, int y, int width, int height, bool origin_top_left);
 extern void sg_apply_scissor_rect(int x, int y, int width, int height, bool origin_top_left);
@@ -1545,6 +1557,7 @@ extern void sg_discard_context(sg_context ctx_id);
 #endif
 
 /*--- IMPLEMENTATION ---------------------------------------------------------*/
+#define SOKOL_IMPL
 #ifdef SOKOL_IMPL
 
 #ifdef _MSC_VER
@@ -1637,6 +1650,7 @@ enum {
 };
 
 /* helper macros */
+// why not named it _sg_default?
 #define _sg_def(val, def) (((val) == 0) ? (def) : (val))
 #define _sg_def_flt(val, def) (((val) == 0.0f) ? (def) : (val))
 #define _sg_min(a,b) ((a<b)?a:b)
@@ -1827,6 +1841,7 @@ _SOKOL_PRIVATE int _sg_surface_pitch(sg_pixel_format fmt, int width, int height)
 }
 
 /* resolve pass action defaults into a new pass action struct */
+// 如果 action 为 _SG_ACTION_DEFAULT，就用默认设置，负责什么都不做
 _SOKOL_PRIVATE void _sg_resolve_default_pass_action(const sg_pass_action* from, sg_pass_action* to) {
     SOKOL_ASSERT(from && to);
     *to = *from;
@@ -1861,6 +1876,7 @@ _SOKOL_PRIVATE int _sg_slot_index(uint32_t id) {
 }
 
 /*== GL BACKEND ==============================================================*/
+#define SOKOL_GLCORE33
 #if defined(SOKOL_GLCORE33) || defined(SOKOL_GLES2) || defined(SOKOL_GLES3)
 /* strstr(), memset() */
 #include <string.h>
@@ -2293,15 +2309,19 @@ _SOKOL_PRIVATE GLenum _sg_gl_depth_attachment_format(sg_pixel_format fmt) {
 }
 
 /*-- GL backend resource declarations ----------------------------------------*/
+ // line2308 对应于 opengl 的 buffer 结构
 typedef struct {
     _sg_slot slot;
     int size;
     sg_buffer_type type;
     sg_usage usage;
     uint32_t upd_frame_index;
+
     int num_slots;
     int active_slot;
     GLuint gl_buf[SG_NUM_INFLIGHT_FRAMES];
+
+    // if ext is true, buffer is loaded by external
     bool ext_buffers;   /* if true, external buffers were injected with sg_buffer_desc.gl_buffers */
 } _sg_buffer;
 
@@ -2321,14 +2341,16 @@ typedef struct {
     sg_usage usage;
     sg_pixel_format pixel_format;
     int sample_count;
+    
     sg_filter min_filter;
     sg_filter mag_filter;
     sg_wrap wrap_u;
     sg_wrap wrap_v;
     sg_wrap wrap_w;
     uint32_t max_anisotropy;
+
     GLenum gl_target;
-    GLuint gl_depth_render_buffer;
+    GLuint gl_depth_render_buffer; // union { GLuint gl_depth_render_buffer; GLuint gl_msaa_render_buffer; }
     GLuint gl_msaa_render_buffer;
     uint32_t upd_frame_index;
     int num_slots;
@@ -2357,8 +2379,8 @@ typedef struct {
 
 typedef struct {
     sg_image_type type;
-    GLint gl_loc;
-    int gl_tex_slot;
+    GLint gl_loc; // location
+    int gl_tex_slot; // tex_unit
 } _sg_shader_image;
 
 typedef struct {
@@ -2380,6 +2402,7 @@ _SOKOL_PRIVATE void _sg_init_shader_slot(_sg_shader* shd) {
 }
 
 typedef struct {
+    // vb_index : use which vb is vbs[vb_index]
     int8_t vb_index;        /* -1 if attr is not enabled */
     int8_t divisor;         /* -1 if not initialized */
     uint8_t stride;
@@ -2406,14 +2429,17 @@ typedef struct {
     sg_primitive_type primitive_type;
     sg_index_type index_type;
     bool vertex_layout_valid[SG_MAX_SHADERSTAGE_BUFFERS];
+
     int color_attachment_count;
     sg_pixel_format color_format;
     sg_pixel_format depth_format;
     int sample_count;
+
     _sg_gl_attr gl_attrs[SG_MAX_VERTEX_ATTRIBUTES];
     sg_depth_stencil_state depth_stencil;
     sg_blend_state blend;
     sg_rasterizer_state rast;
+
 } _sg_pipeline;
 
 _SOKOL_PRIVATE void _sg_init_pipeline_slot(_sg_pipeline* pip) {
@@ -2587,14 +2613,15 @@ typedef struct {
     _sg_context* cur_context;
     _sg_pass* cur_pass;
     sg_pass cur_pass_id;
-    _sg_state_cache cache;
+    _sg_state_cache cache; // context_
     bool features[SG_NUM_FEATURES];
     bool ext_anisotropic;
     GLint max_anisotropy;
-} _sg_backend;
+} _sg_backend; // render_desc_ + context_
 
 static _sg_backend _sg_gl;
 
+// like init_render(const init_desc& desc)
 _SOKOL_PRIVATE void _sg_setup_backend(const sg_desc* desc) {
     _sg_gl_gles2 = desc->gl_force_gles2;
     memset(&_sg_gl, 0, sizeof(_sg_gl));
@@ -2698,14 +2725,17 @@ _SOKOL_PRIVATE void _sg_discard_backend() {
 }
 
 _SOKOL_PRIVATE void _sg_reset_state_cache() {
-    if (_sg_gl.cur_context) {
+    if (_sg_gl.cur_context) 
+    {
         #if !defined(SOKOL_GLES2)
-        if (!_sg_gl_gles2) {
+        if (!_sg_gl_gles2) 
+        {
             _SG_GL_CHECK_ERROR();
             glBindVertexArray(_sg_gl.cur_context->vao);
             _SG_GL_CHECK_ERROR();
         }
         #endif
+
         _sg_gl_reset_state_cache(&_sg_gl.cache);
     }
 }
@@ -2758,30 +2788,43 @@ _SOKOL_PRIVATE void _sg_create_buffer(_sg_buffer* buf, const sg_buffer_desc* des
     SOKOL_ASSERT(buf && desc);
     SOKOL_ASSERT(buf->slot.state == SG_RESOURCESTATE_ALLOC);
     _SG_GL_CHECK_ERROR();
+
     buf->size = desc->size;
     buf->type = _sg_def(desc->type, SG_BUFFERTYPE_VERTEXBUFFER);
     buf->usage = _sg_def(desc->usage, SG_USAGE_IMMUTABLE);
     buf->upd_frame_index = 0;
+    // how many slots is depended by usage
     buf->num_slots = (buf->usage == SG_USAGE_IMMUTABLE) ? 1 : SG_NUM_INFLIGHT_FRAMES;
     buf->active_slot = 0;
     buf->ext_buffers = (0 != desc->gl_buffers[0]);
+
+    // sokol 的公共类型转换到 opengl 的类型
     GLenum gl_target = _sg_gl_buffer_target(buf->type);
     GLenum gl_usage  = _sg_gl_usage(buf->usage);
-    for (int slot = 0; slot < buf->num_slots; slot++) {
+
+    for (int slot = 0; slot < buf->num_slots; slot++) 
+    {
         GLuint gl_buf = 0;
-        if (buf->ext_buffers) {
+
+        // if 0 != desc->gl_buffers[0] ???
+        // 外部已经有 vbo 了，直接加载到槽里
+        if (buf->ext_buffers) 
+        {
             SOKOL_ASSERT(desc->gl_buffers[slot]);
             gl_buf = desc->gl_buffers[slot];
         }
-        else {
+        else 
+        {
             glGenBuffers(1, &gl_buf);
             glBindBuffer(gl_target, gl_buf);
             glBufferData(gl_target, buf->size, 0, gl_usage);
+
             if (buf->usage == SG_USAGE_IMMUTABLE) {
                 SOKOL_ASSERT(desc->content);
                 glBufferSubData(gl_target, 0, buf->size, desc->content);
             }
         }
+
         buf->gl_buf[slot] = gl_buf;
     }
     _SG_GL_CHECK_ERROR();
@@ -2799,7 +2842,7 @@ _SOKOL_PRIVATE void _sg_destroy_buffer(_sg_buffer* buf) {
         }
         _SG_GL_CHECK_ERROR();
     }
-    _sg_init_buffer_slot(buf);
+    _sg_init_buffer_slot(buf); // 重用这个 buffer ？？？
 }
 
 _SOKOL_PRIVATE bool _sg_gl_supported_texture_format(sg_pixel_format fmt) {
@@ -2842,6 +2885,7 @@ _SOKOL_PRIVATE void _sg_create_image(_sg_image* img, const sg_image_desc* desc) 
     img->max_anisotropy = _sg_def(desc->max_anisotropy, 1);
     img->upd_frame_index = 0;
 
+    // 以下三个 if 判断是否支持 pixel formt、3d texture、texture array
     /* check if texture format is support */
     if (!_sg_gl_supported_texture_format(img->pixel_format)) {
         SOKOL_LOG("compressed texture format not supported by GL context\n");
@@ -2872,6 +2916,7 @@ _SOKOL_PRIVATE void _sg_create_image(_sg_image* img, const sg_image_desc* desc) 
     }
     #endif
     
+    // 生成 depth、stencil rendertarget
     if (_sg_is_valid_rendertarget_depth_format(img->pixel_format)) {
         /* special case depth-stencil-buffer? */
         SOKOL_ASSERT((img->usage == SG_USAGE_IMMUTABLE) && (img->num_slots == 1));
@@ -2889,7 +2934,8 @@ _SOKOL_PRIVATE void _sg_create_image(_sg_image* img, const sg_image_desc* desc) 
             glRenderbufferStorage(GL_RENDERBUFFER, gl_depth_format, img->width, img->height);
         }
     }
-    else {
+    else 
+    {
         /* regular color texture */
         img->gl_target = _sg_gl_texture_target(img->type);
         const GLenum gl_internal_format = _sg_gl_teximage_internal_format(img->pixel_format);
@@ -2897,6 +2943,7 @@ _SOKOL_PRIVATE void _sg_create_image(_sg_image* img, const sg_image_desc* desc) 
         /* if this is a MSAA render target, need to create a separate render buffer */
         #if !defined(SOKOL_GLES2)
         if (!_sg_gl_gles2 && img->render_target && msaa) {
+            // 使用一个 multisample renderbuffer 作为 rt，当需要读取 rt 时，要先将 renderbuffer 的内容复制到一个普通的 texture 上
             glGenRenderbuffers(1, &img->gl_msaa_render_buffer);
             glBindRenderbuffer(GL_RENDERBUFFER, img->gl_msaa_render_buffer);
             glRenderbufferStorageMultisample(GL_RENDERBUFFER, img->sample_count, gl_internal_format, img->width, img->height);
@@ -2904,6 +2951,7 @@ _SOKOL_PRIVATE void _sg_create_image(_sg_image* img, const sg_image_desc* desc) 
         #endif
 
         if (img->ext_textures) {
+            // 使用外部已生成的纹理对象
             /* inject externally GL textures */
             for (int slot = 0; slot < img->num_slots; slot++) {
                 SOKOL_ASSERT(desc->gl_textures[slot]);
@@ -2914,10 +2962,15 @@ _SOKOL_PRIVATE void _sg_create_image(_sg_image* img, const sg_image_desc* desc) 
             /* create our own GL texture(s) */
             const GLenum gl_format = _sg_gl_teximage_format(img->pixel_format);
             const bool is_compressed = _sg_is_compressed_pixel_format(img->pixel_format);
-            for (int slot = 0; slot < img->num_slots; slot++) {
+
+            for (int slot = 0; slot < img->num_slots; slot++) 
+            {
                 glGenTextures(1, &img->gl_tex[slot]);
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(img->gl_target, img->gl_tex[slot]);
+
+
+
                 GLenum gl_min_filter = _sg_gl_filter(img->min_filter);
                 GLenum gl_mag_filter = _sg_gl_filter(img->mag_filter);
                 glTexParameteri(img->gl_target, GL_TEXTURE_MIN_FILTER, gl_min_filter);
@@ -2929,6 +2982,7 @@ _SOKOL_PRIVATE void _sg_create_image(_sg_image* img, const sg_image_desc* desc) 
                     }
                     glTexParameteri(img->gl_target, GL_TEXTURE_MAX_ANISOTROPY_EXT, max_aniso);
                 }
+
                 if (img->type == SG_IMAGETYPE_CUBE) {
                     glTexParameteri(img->gl_target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
                     glTexParameteri(img->gl_target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -2942,6 +2996,7 @@ _SOKOL_PRIVATE void _sg_create_image(_sg_image* img, const sg_image_desc* desc) 
                     }
                     #endif
                 }
+
                 #if !defined(SOKOL_GLES2)
                     if (!_sg_gl_gles2) {
                         /* GL spec has strange defaults for mipmap min/max lod: -1000 to +1000 */
@@ -2951,10 +3006,16 @@ _SOKOL_PRIVATE void _sg_create_image(_sg_image* img, const sg_image_desc* desc) 
                         glTexParameterf(img->gl_target, GL_TEXTURE_MAX_LOD, max_lod);
                     }
                 #endif
+
+
+
                 const int num_faces = img->type == SG_IMAGETYPE_CUBE ? 6 : 1;
                 int data_index = 0;
+                // 加载数据
                 for (int face_index = 0; face_index < num_faces; face_index++) {
-                    for (int mip_index = 0; mip_index < img->num_mipmaps; mip_index++, data_index++) {
+                    // 手动生成 mipmaps
+                    for (int mip_index = 0; mip_index < img->num_mipmaps; mip_index++, data_index++) 
+                    {
                         GLenum gl_img_target = img->gl_target;
                         if (SG_IMAGETYPE_CUBE == img->type) {
                             gl_img_target = _sg_gl_cubeface_target(face_index);
@@ -2969,6 +3030,7 @@ _SOKOL_PRIVATE void _sg_create_image(_sg_image* img, const sg_image_desc* desc) 
                         if (mip_height == 0) {
                             mip_height = 1;
                         }
+
                         if ((SG_IMAGETYPE_2D == img->type) || (SG_IMAGETYPE_CUBE == img->type)) {
                             if (is_compressed) {
                                 glCompressedTexImage2D(gl_img_target, mip_index, gl_internal_format,
@@ -2980,6 +3042,7 @@ _SOKOL_PRIVATE void _sg_create_image(_sg_image* img, const sg_image_desc* desc) 
                                     mip_width, mip_height, 0, gl_format, gl_type, data_ptr);
                             }
                         }
+
                         #if !defined(SOKOL_GLES2)
                         else if (!_sg_gl_gles2 && ((SG_IMAGETYPE_3D == img->type) || (SG_IMAGETYPE_ARRAY == img->type))) {
                             int mip_depth = img->depth >> mip_index;
@@ -3070,6 +3133,7 @@ _SOKOL_PRIVATE void _sg_create_shader(_sg_shader* shd, const sg_shader_desc* des
     glDeleteShader(gl_fs);
     _SG_GL_CHECK_ERROR();
 
+    // check program link error
     GLint link_status;
     glGetProgramiv(gl_prog, GL_LINK_STATUS, &link_status);
     if (!link_status) {
@@ -3089,11 +3153,15 @@ _SOKOL_PRIVATE void _sg_create_shader(_sg_shader* shd, const sg_shader_desc* des
 
     /* resolve uniforms */
     _SG_GL_CHECK_ERROR();
-    for (int stage_index = 0; stage_index < SG_NUM_SHADER_STAGES; stage_index++) {
+    for (int stage_index = 0; stage_index < SG_NUM_SHADER_STAGES; stage_index++) 
+    {
         const sg_shader_stage_desc* stage_desc = (stage_index == SG_SHADERSTAGE_VS)? &desc->vs : &desc->fs;
         _sg_shader_stage* stage = &shd->stage[stage_index];
         SOKOL_ASSERT(stage->num_uniform_blocks == 0);
-        for (int ub_index = 0; ub_index < SG_MAX_SHADERSTAGE_UBS; ub_index++) {
+
+        // 计算某个 stage 里的所有 uniform_blocks
+        for (int ub_index = 0; ub_index < SG_MAX_SHADERSTAGE_UBS; ub_index++) 
+        {
             const sg_shader_uniform_block_desc* ub_desc = &stage_desc->uniform_blocks[ub_index];
             if (0 == ub_desc->size) {
                 break;
@@ -3102,7 +3170,10 @@ _SOKOL_PRIVATE void _sg_create_shader(_sg_shader* shd, const sg_shader_desc* des
             ub->size = ub_desc->size;
             SOKOL_ASSERT(ub->num_uniforms == 0);
             int cur_uniform_offset = 0;
-            for (int u_index = 0; u_index < SG_MAX_UB_MEMBERS; u_index++) {
+
+            // 计算某个 uniform_blocks 的所有 uniform 变量
+            for (int u_index = 0; u_index < SG_MAX_UB_MEMBERS; u_index++) 
+            {
                 const sg_shader_uniform_desc* u_desc = &ub_desc->uniforms[u_index];
                 if (u_desc->type == SG_UNIFORMTYPE_INVALID) {
                     break;
@@ -3111,8 +3182,11 @@ _SOKOL_PRIVATE void _sg_create_shader(_sg_shader* shd, const sg_shader_desc* des
                 u->type = u_desc->type;
                 u->count = (uint8_t) _sg_def(u_desc->array_count, 1);
                 u->offset = (uint16_t) cur_uniform_offset;
+
                 cur_uniform_offset += _sg_uniform_size(u->type, u->count);
-                if (u_desc->name) {
+                if (u_desc->name) 
+                {
+                    // 获得地址，赋予 gl_shader
                     u->gl_loc = glGetUniformLocation(gl_prog, u_desc->name);
                 }
                 else {
@@ -3120,6 +3194,7 @@ _SOKOL_PRIVATE void _sg_create_shader(_sg_shader* shd, const sg_shader_desc* des
                 }
                 ub->num_uniforms++;
             }
+
             SOKOL_ASSERT(ub_desc->size == cur_uniform_offset);
             stage->num_uniform_blocks++;
         }
@@ -3128,11 +3203,14 @@ _SOKOL_PRIVATE void _sg_create_shader(_sg_shader* shd, const sg_shader_desc* des
     /* resolve image locations */
     _SG_GL_CHECK_ERROR();
     int gl_tex_slot = 0;
-    for (int stage_index = 0; stage_index < SG_NUM_SHADER_STAGES; stage_index++) {
+    for (int stage_index = 0; stage_index < SG_NUM_SHADER_STAGES; stage_index++) 
+    {
         const sg_shader_stage_desc* stage_desc = (stage_index == SG_SHADERSTAGE_VS)? &desc->vs : &desc->fs;
         _sg_shader_stage* stage = &shd->stage[stage_index];
         SOKOL_ASSERT(stage->num_images == 0);
-        for (int img_index = 0; img_index < SG_MAX_SHADERSTAGE_IMAGES; img_index++) {
+
+        for (int img_index = 0; img_index < SG_MAX_SHADERSTAGE_IMAGES; img_index++) 
+        {
             const sg_shader_image_desc* img_desc = &stage_desc->images[img_index];
             if (img_desc->type == _SG_IMAGETYPE_DEFAULT) {
                 break;
@@ -3140,7 +3218,9 @@ _SOKOL_PRIVATE void _sg_create_shader(_sg_shader* shd, const sg_shader_desc* des
             _sg_shader_image* img = &stage->images[img_index];
             img->type = img_desc->type;
             img->gl_loc = img_index;
-            if (img_desc->name) {
+            if (img_desc->name) 
+            {
+                // 获得纹理地址
                 img->gl_loc = glGetUniformLocation(gl_prog, img_desc->name);
             }
             if (img->gl_loc != -1) {
@@ -3217,8 +3297,9 @@ _SOKOL_PRIVATE void _sg_create_pipeline(_sg_pipeline* pip, _sg_shader* shd, cons
     SOKOL_ASSERT(pip && shd && desc);
     SOKOL_ASSERT(pip->slot.state == SG_RESOURCESTATE_ALLOC);
     SOKOL_ASSERT(!pip->shader && pip->shader_id.id == SG_INVALID_ID);
-    SOKOL_ASSERT(desc->shader.id == shd->slot.id);
+    SOKOL_ASSERT(desc->shader.id == shd->slot.id); // slot.id 记录的是在对应 pool 里的位置
     SOKOL_ASSERT(shd->gl_prog);
+
     pip->shader = shd;
     pip->shader_id = desc->shader;
     pip->primitive_type = _sg_def(desc->primitive_type, SG_PRIMITIVETYPE_TRIANGLES);
@@ -3227,6 +3308,7 @@ _SOKOL_PRIVATE void _sg_create_pipeline(_sg_pipeline* pip, _sg_shader* shd, cons
     pip->color_format = _sg_def(desc->blend.color_format, SG_PIXELFORMAT_RGBA8);
     pip->depth_format = _sg_def(desc->blend.depth_format, SG_PIXELFORMAT_DEPTHSTENCIL);
     pip->sample_count = _sg_def(desc->rasterizer.sample_count, 1);
+
     _sg_gl_load_depth_stencil(&desc->depth_stencil, &pip->depth_stencil);
     _sg_gl_load_blend(&desc->blend, &pip->blend);
     _sg_gl_load_rasterizer(&desc->rasterizer, &pip->rast);
@@ -3237,30 +3319,43 @@ _SOKOL_PRIVATE void _sg_create_pipeline(_sg_pipeline* pip, _sg_shader* shd, cons
         auto_offset[layout_index] = 0;
     }
     bool use_auto_offset = true;
-    for (int attr_index = 0; attr_index < SG_MAX_VERTEX_ATTRIBUTES; attr_index++) {
+    // OpenGL 是否能自动计算顶点属性的偏移量
+    for (int attr_index = 0; attr_index < SG_MAX_VERTEX_ATTRIBUTES; attr_index++) 
+    {
         pip->gl_attrs[attr_index].vb_index = -1;
         /* to use computed offsets, *all* attr offsets must be 0 */
-        if (desc->layout.attrs[attr_index].offset != 0) {
+        if (desc->layout.attrs[attr_index].offset != 0) 
+        {
             use_auto_offset = false;
         }
     }
-    for (int attr_index = 0; attr_index < SG_MAX_VERTEX_ATTRIBUTES; attr_index++) {
+
+    // layout.attrs.buffer_index 使得这里只需要一维的 for 循环就可以了
+    for (int attr_index = 0; attr_index < SG_MAX_VERTEX_ATTRIBUTES; attr_index++) 
+    {
+        // why not a_desc -> attr_desc
         const sg_vertex_attr_desc* a_desc = &desc->layout.attrs[attr_index];
         if (a_desc->format == SG_VERTEXFORMAT_INVALID) {
             break;
         }
         SOKOL_ASSERT((a_desc->buffer_index >= 0) && (a_desc->buffer_index < SG_MAX_SHADERSTAGE_BUFFERS));
+
         const sg_buffer_layout_desc* l_desc = &desc->layout.buffers[a_desc->buffer_index];
         const sg_vertex_step step_func = _sg_def(l_desc->step_func, SG_VERTEXSTEP_PER_VERTEX);
         const int step_rate = _sg_def(l_desc->step_rate, 1);
+
+        // 如果输入了这个顶点属性的名字就去查找，否则默认按 0、1、2 增长位置
         GLint attr_loc = attr_index;
         if (a_desc->name) {
             attr_loc = glGetAttribLocation(pip->shader->gl_prog, a_desc->name);
         }
+
         SOKOL_ASSERT(attr_loc < SG_MAX_VERTEX_ATTRIBUTES);
+
         if (attr_loc != -1) {
             _sg_gl_attr* gl_attr = &pip->gl_attrs[attr_loc];
             SOKOL_ASSERT(gl_attr->vb_index == -1);
+
             gl_attr->vb_index = (int8_t) a_desc->buffer_index;
             if (step_func == SG_VERTEXSTEP_PER_VERTEX) {
                 gl_attr->divisor = 0;
@@ -3272,8 +3367,8 @@ _SOKOL_PRIVATE void _sg_create_pipeline(_sg_pipeline* pip, _sg_shader* shd, cons
             gl_attr->offset = use_auto_offset ? auto_offset[a_desc->buffer_index] : a_desc->offset;
             gl_attr->size = (uint8_t) _sg_gl_vertexformat_size(a_desc->format);
             gl_attr->type = _sg_gl_vertexformat_type(a_desc->format);
-            gl_attr->normalized = _sg_gl_vertexformat_normalized(a_desc->format);
-            pip->vertex_layout_valid[a_desc->buffer_index] = true;
+            gl_attr->normalized = _sg_gl_vertexformat_normalized(a_desc->format); // 有几种类型是需要归一化的
+            pip->vertex_layout_valid[a_desc->buffer_index] = true; // for check
         }
         else {
             SOKOL_LOG("Vertex attribute not found in shader: ");
@@ -3281,9 +3376,12 @@ _SOKOL_PRIVATE void _sg_create_pipeline(_sg_pipeline* pip, _sg_shader* shd, cons
         }
         auto_offset[a_desc->buffer_index] += _sg_vertexformat_bytesize(a_desc->format);
     }
+
     /* fill computed vertex strides that haven't been explicitely provided */
-    for (int attr_index = 0; attr_index < SG_MAX_VERTEX_ATTRIBUTES; attr_index++) {
+    for (int attr_index = 0; attr_index < SG_MAX_VERTEX_ATTRIBUTES; attr_index++) 
+    {
         _sg_gl_attr* gl_attr = &pip->gl_attrs[attr_index];
+        // 计算未声明 stride 大小的 attr.stride 
         if ((gl_attr->vb_index != -1) && (0 == gl_attr->stride)) {
             gl_attr->stride = (uint8_t) auto_offset[gl_attr->vb_index];
         }
@@ -3475,6 +3573,7 @@ _SOKOL_PRIVATE void _sg_begin_pass(_sg_pass* pass, const sg_pass_action* action,
     SOKOL_ASSERT(action);
     SOKOL_ASSERT(!_sg_gl.in_pass);
     _SG_GL_CHECK_ERROR();
+
     _sg_gl.in_pass = true;
     _sg_gl.cur_pass = pass; /* can be 0 */
     if (pass) {
@@ -3485,6 +3584,7 @@ _SOKOL_PRIVATE void _sg_begin_pass(_sg_pass* pass, const sg_pass_action* action,
     }
     _sg_gl.cur_pass_width = w;
     _sg_gl.cur_pass_height = h;
+
     if (pass) {
         /* offscreen pass */
         SOKOL_ASSERT(pass->gl_fb);
@@ -3678,9 +3778,11 @@ _SOKOL_PRIVATE void _sg_apply_draw_state(
     _SG_GL_CHECK_ERROR();
 
     /* need to apply pipeline state? */
-    if ((_sg_gl.cache.cur_pipeline != pip) || (_sg_gl.cache.cur_pipeline_id.id != pip->slot.id)) {
+    if ((_sg_gl.cache.cur_pipeline != pip) || (_sg_gl.cache.cur_pipeline_id.id != pip->slot.id)) 
+    {
         _sg_gl.cache.cur_pipeline = pip;
         _sg_gl.cache.cur_pipeline_id.id = pip->slot.id;
+
         _sg_gl.cache.cur_primitive_type = _sg_gl_primitive_type(pip->primitive_type);
         _sg_gl.cache.cur_index_type = _sg_gl_index_type(pip->index_type);
 
@@ -3695,6 +3797,7 @@ _SOKOL_PRIVATE void _sg_apply_draw_state(
             cache_ds->depth_write_enabled = new_ds->depth_write_enabled;
             glDepthMask(new_ds->depth_write_enabled);
         }
+
         if (new_ds->stencil_enabled != cache_ds->stencil_enabled) {
             cache_ds->stencil_enabled = new_ds->stencil_enabled;
             if (new_ds->stencil_enabled) glEnable(GL_STENCIL_TEST); 
@@ -3845,13 +3948,16 @@ _SOKOL_PRIVATE void _sg_apply_draw_state(
         const _sg_shader_stage* stage = &pip->shader->stage[stage_index];
         _sg_image** imgs = (stage_index == SG_SHADERSTAGE_VS)? vs_imgs : fs_imgs;
         SOKOL_ASSERT(((stage_index == SG_SHADERSTAGE_VS)? num_vs_imgs : num_fs_imgs) == stage->num_images);
+        
         for (int img_index = 0; img_index < stage->num_images; img_index++) {
             const _sg_shader_image* shd_img = &stage->images[img_index];
             if (shd_img->gl_loc != -1) {
-                _sg_image* img = imgs[img_index];
-                const GLuint gl_tex = img->gl_tex[img->active_slot];
+                /*opengl_image*/_sg_image* img = imgs[img_index];
+                const GLuint gl_tex/*tbo*/ = img->gl_tex[img->active_slot];
+
                 SOKOL_ASSERT(img && img->gl_target);
                 SOKOL_ASSERT((shd_img->gl_tex_slot != -1) && gl_tex);
+
                 glUniform1i(shd_img->gl_loc, shd_img->gl_tex_slot);
                 glActiveTexture(GL_TEXTURE0+shd_img->gl_tex_slot);
                 glBindTexture(img->gl_target, gl_tex);
@@ -3870,17 +3976,23 @@ _SOKOL_PRIVATE void _sg_apply_draw_state(
 
     /* vertex attributes */
     GLuint gl_vb = 0;
-    for (int attr_index = 0; attr_index < SG_MAX_VERTEX_ATTRIBUTES; attr_index++) {
+    for (int attr_index = 0; attr_index < SG_MAX_VERTEX_ATTRIBUTES; attr_index++) 
+    {
         _sg_gl_attr* attr = &pip->gl_attrs[attr_index];
-        _sg_gl_cache_attr* cache_attr = &_sg_gl.cache.attrs[attr_index];
+        _sg_gl_cache_attr* cache_attr = &_sg_gl.cache.attrs[attr_index]; // 什么时候加进去的？？？now
         bool cache_attr_dirty = false;
         uint32_t vb_offset = 0;
-        if (attr->vb_index >= 0) {
+
+        if (attr->vb_index >= 0) 
+        {
             /* attribute is enabled */
             SOKOL_ASSERT(attr->vb_index < num_vbs);
+            // 用 vb_index 选择 bind 到哪一个 buffer
             _sg_buffer* vb = vbs[attr->vb_index];
             SOKOL_ASSERT(vb);
+
             vb_offset = vb_offsets[attr->vb_index] + attr->offset;
+
             if ((vb->gl_buf[vb->active_slot] != cache_attr->gl_vbuf) ||
                 (attr->size != cache_attr->gl_attr.size) ||
                 (attr->type != cache_attr->gl_attr.type) ||
@@ -3889,6 +4001,7 @@ _SOKOL_PRIVATE void _sg_apply_draw_state(
                 (vb_offset != cache_attr->gl_attr.offset) ||
                 (cache_attr->gl_attr.divisor != attr->divisor))
             {
+                // 一个 buffer 可以有多个 vbo，根据 active_slot 选择使用哪个 active_slot
                 if (gl_vb != vb->gl_buf[vb->active_slot]) {
                     gl_vb = vb->gl_buf[vb->active_slot];
                     glBindBuffer(GL_ARRAY_BUFFER, gl_vb);
@@ -3906,7 +4019,8 @@ _SOKOL_PRIVATE void _sg_apply_draw_state(
                 cache_attr_dirty = true;
             }
         }
-        else {
+        else 
+        {
             /* attribute is disabled */
             if (cache_attr->gl_attr.vb_index != -1) {
                 glDisableVertexAttribArray(attr_index);
@@ -3929,6 +4043,7 @@ _SOKOL_PRIVATE void _sg_apply_uniform_block(sg_shader_stage stage_index, int ub_
     SOKOL_ASSERT(_sg_gl.cache.cur_pipeline);
     SOKOL_ASSERT(_sg_gl.cache.cur_pipeline->slot.id == _sg_gl.cache.cur_pipeline_id.id);
     SOKOL_ASSERT(_sg_gl.cache.cur_pipeline->shader->slot.id == _sg_gl.cache.cur_pipeline->shader_id.id);
+    
     _sg_shader_stage* stage = &_sg_gl.cache.cur_pipeline->shader->stage[stage_index];
     SOKOL_ASSERT(ub_index < stage->num_uniform_blocks);
     _sg_uniform_block* ub = &stage->uniform_blocks[ub_index];
@@ -4029,6 +4144,7 @@ _SOKOL_PRIVATE void _sg_update_image(_sg_image* img, const sg_image_content* dat
     const int num_faces = img->type == SG_IMAGETYPE_CUBE ? 6 : 1;
     const int num_mips = img->num_mipmaps;
     for (int face_index = 0; face_index < num_faces; face_index++) {
+        // 3d/array is used for mipmaps???
         for (int mip_index = 0; mip_index < num_mips; mip_index++) {
             GLenum gl_img_target = img->gl_target;
             if (SG_IMAGETYPE_CUBE == img->type) {
@@ -4069,7 +4185,7 @@ _SOKOL_PRIVATE void _sg_update_image(_sg_image* img, const sg_image_content* dat
 }
 
 /*== D3D11 BACKEND ===========================================================*/
-#elif defined(SOKOL_D3D11)
+//#elif defined(SOKOL_D3D11)
 
 #ifndef D3D11_NO_HELPERS
 #define D3D11_NO_HELPERS
@@ -7358,6 +7474,9 @@ _SOKOL_PRIVATE void _sg_update_image(_sg_image* img, const sg_image_content* dat
 #else
 #error "No rendering backend selected"
 #endif
+
+
+
 /*== RESOURCE POOLS ==========================================================*/
 typedef struct {
     int size;
@@ -7532,9 +7651,9 @@ _SOKOL_PRIVATE _sg_pipeline* _sg_pipeline_at(const _sg_pools* p, uint32_t pip_id
     return &p->pipelines[slot_index];
 }
 
-_SOKOL_PRIVATE _sg_pass* _sg_pass_at(const _sg_pools* p, uint32_t pass_id) {
-    SOKOL_ASSERT(p && SG_INVALID_ID != pass_id);
-    int slot_index = _sg_slot_index(pass_id);
+_SOKOL_PRIVATE _sg_pass* _sg_pass_at(const _sg_pools* p, uint32_t frame_id) {
+    SOKOL_ASSERT(p && SG_INVALID_ID != frame_id);
+    int slot_index = _sg_slot_index(frame_id);
     SOKOL_ASSERT((slot_index >= 0) && (slot_index < p->pass_pool.size));
     return &p->passes[slot_index];
 }
@@ -7589,11 +7708,11 @@ _SOKOL_PRIVATE _sg_pipeline* _sg_lookup_pipeline(const _sg_pools* p, uint32_t pi
     return 0;
 }
 
-_SOKOL_PRIVATE _sg_pass* _sg_lookup_pass(const _sg_pools* p, uint32_t pass_id) {
+_SOKOL_PRIVATE _sg_pass* _sg_lookup_pass(const _sg_pools* p, uint32_t frame_id) {
     SOKOL_ASSERT(p);
-    if (SG_INVALID_ID != pass_id) {
-        _sg_pass* pass = _sg_pass_at(p, pass_id);
-        if (pass->slot.id == pass_id) {
+    if (SG_INVALID_ID != frame_id) {
+        _sg_pass* pass = _sg_pass_at(p, frame_id);
+        if (pass->slot.id == frame_id) {
             return pass;
         }
     }
@@ -8560,9 +8679,9 @@ void sg_init_pipeline(sg_pipeline pip_id, const sg_pipeline_desc* desc) {
     SOKOL_ASSERT((pip->slot.state == SG_RESOURCESTATE_VALID)||(pip->slot.state == SG_RESOURCESTATE_FAILED)); 
 }
 
-void sg_init_pass(sg_pass pass_id, const sg_pass_desc* desc) {
-    SOKOL_ASSERT(pass_id.id != SG_INVALID_ID && desc);
-    _sg_pass* pass = _sg_lookup_pass(&_sg.pools, pass_id.id);
+void sg_init_pass(sg_pass frame_id, const sg_pass_desc* desc) {
+    SOKOL_ASSERT(frame_id.id != SG_INVALID_ID && desc);
+    _sg_pass* pass = _sg_lookup_pass(&_sg.pools, frame_id.id);
     SOKOL_ASSERT(pass && pass->slot.state == SG_RESOURCESTATE_ALLOC);
     if (_sg_validate_pass_desc(desc)) {
         /* lookup pass attachment image pointers */
@@ -8622,9 +8741,9 @@ void sg_fail_pipeline(sg_pipeline pip_id) {
     pip->slot.state = SG_RESOURCESTATE_FAILED;
 }
 
-void sg_fail_pass(sg_pass pass_id) {
-    SOKOL_ASSERT(pass_id.id != SG_INVALID_ID);
-    _sg_pass* pass = _sg_lookup_pass(&_sg.pools, pass_id.id);
+void sg_fail_pass(sg_pass frame_id) {
+    SOKOL_ASSERT(frame_id.id != SG_INVALID_ID);
+    _sg_pass* pass = _sg_lookup_pass(&_sg.pools, frame_id.id);
     SOKOL_ASSERT(pass && pass->slot.state == SG_RESOURCESTATE_ALLOC);
     pass->slot.state = SG_RESOURCESTATE_FAILED;
 }
@@ -8670,9 +8789,9 @@ sg_resource_state sg_query_pipeline_state(sg_pipeline pip_id) {
     return SG_RESOURCESTATE_INVALID;
 }
 
-sg_resource_state sg_query_pass_state(sg_pass pass_id) {
-    if (pass_id.id != SG_INVALID_ID) {
-        _sg_pass* pass = _sg_lookup_pass(&_sg.pools, pass_id.id);
+sg_resource_state sg_query_pass_state(sg_pass frame_id) {
+    if (frame_id.id != SG_INVALID_ID) {
+        _sg_pass* pass = _sg_lookup_pass(&_sg.pools, frame_id.id);
         if (pass) {
             return pass->slot.state;
         }
@@ -8731,14 +8850,14 @@ sg_pipeline sg_make_pipeline(const sg_pipeline_desc* desc) {
 
 sg_pass sg_make_pass(const sg_pass_desc* desc) {
     SOKOL_ASSERT(desc);
-    sg_pass pass_id = sg_alloc_pass();
-    if (pass_id.id != SG_INVALID_ID) {
-        sg_init_pass(pass_id, desc);
+    sg_pass frame_id = sg_alloc_pass();
+    if (frame_id.id != SG_INVALID_ID) {
+        sg_init_pass(frame_id, desc);
     }
     else {
         SOKOL_LOG("pass pool exhausted!");
     }
-    return pass_id;
+    return frame_id;
 }
 
 /*-- destroy resource --------------------------------------------------------*/
@@ -8794,12 +8913,12 @@ void sg_destroy_pipeline(sg_pipeline pip_id) {
     }
 }
 
-void sg_destroy_pass(sg_pass pass_id) {
-    _sg_pass* pass = _sg_lookup_pass(&_sg.pools, pass_id.id);
+void sg_destroy_pass(sg_pass frame_id) {
+    _sg_pass* pass = _sg_lookup_pass(&_sg.pools, frame_id.id);
     if (pass) {
         if (pass->slot.ctx_id == _sg.active_context.id) {
             _sg_destroy_pass(pass);
-            _sg_pool_free_id(&_sg.pools.pass_pool, pass_id.id);
+            _sg_pool_free_id(&_sg.pools.pass_pool, frame_id.id);
         }
         else {
             SOKOL_LOG("sg_destroy_pass: active context mismatch (must be same as for creation)");
@@ -8817,11 +8936,11 @@ void sg_begin_default_pass(const sg_pass_action* pass_action, int width, int hei
     _sg_begin_pass(0, &pa, width, height);
 }
 
-void sg_begin_pass(sg_pass pass_id, const sg_pass_action* pass_action) {
+void sg_begin_pass(sg_pass frame_id, const sg_pass_action* pass_action) {
     SOKOL_ASSERT(pass_action);
     SOKOL_ASSERT((pass_action->_start_canary == 0) && (pass_action->_end_canary == 0));
-    _sg.cur_pass = pass_id;
-    _sg_pass* pass = _sg_lookup_pass(&_sg.pools, pass_id.id);
+    _sg.cur_pass = frame_id;
+    _sg_pass* pass = _sg_lookup_pass(&_sg.pools, frame_id.id);
     if (pass && _sg_validate_begin_pass(pass)) {
         _sg.pass_valid = true;
         sg_pass_action pa;
