@@ -1,4 +1,10 @@
 #pragma once
+
+#define SOKOL_IMPL
+#define SOKOL_NO_DEPRECATED
+// #define SOKOL_DUMMY_BACKEND
+// #define SOKOL_GLCORE33
+#define SOKOL_D3D11
 /*
     sokol_gfx.h -- simple 3D API wrapper
 
@@ -1589,32 +1595,33 @@ SOKOL_API_DECL sg_resource_state sg_query_pipeline_state(sg_pipeline pip);
 SOKOL_API_DECL sg_resource_state sg_query_pass_state(sg_pass pass);
 
 /* rendering functions */
-extern void sg_begin_default_pass(/*sg_pass pass = 0,*/const sg_pass_action* pass_action, int width, int height);
-extern void sg_begin_pass(sg_pass pass, const sg_pass_action* pass_action);
-extern void sg_apply_viewport(int x, int y, int width, int height, bool origin_top_left);
-extern void sg_apply_scissor_rect(int x, int y, int width, int height, bool origin_top_left);
-extern void sg_apply_draw_state(const sg_draw_state* ds);
-extern void sg_apply_uniform_block(sg_shader_stage stage, int ub_index, const void* data, int num_bytes);
-extern void sg_draw(int base_element, int num_elements, int num_instances);
-extern void sg_end_pass(void);
-extern void sg_commit(void);
+SOKOL_API_DECL void sg_begin_default_pass(const sg_pass_action* pass_action, int width, int height);
+SOKOL_API_DECL void sg_begin_pass(sg_pass pass, const sg_pass_action* pass_action);
+SOKOL_API_DECL void sg_apply_viewport(int x, int y, int width, int height, bool origin_top_left);
+SOKOL_API_DECL void sg_apply_scissor_rect(int x, int y, int width, int height, bool origin_top_left);
+SOKOL_API_DECL void sg_apply_pipeline(sg_pipeline pip);
+SOKOL_API_DECL void sg_apply_bindings(const sg_bindings* bindings);
+SOKOL_API_DECL void sg_apply_uniforms(sg_shader_stage stage, int ub_index, const void* data, int num_bytes);
+SOKOL_API_DECL void sg_draw(int base_element, int num_elements, int num_instances);
+SOKOL_API_DECL void sg_end_pass(void);
+SOKOL_API_DECL void sg_commit(void);
 
-/* separate resource allocation and initialization (for async setup) */ 
-extern sg_buffer sg_alloc_buffer(void);
-extern sg_image sg_alloc_image(void);
-extern sg_shader sg_alloc_shader(void);
-extern sg_pipeline sg_alloc_pipeline(void);
-extern sg_pass sg_alloc_pass(void);
-extern void sg_init_buffer(sg_buffer buf_id, const sg_buffer_desc* desc);
-extern void sg_init_image(sg_image img_id, const sg_image_desc* desc);
-extern void sg_init_shader(sg_shader shd_id, const sg_shader_desc* desc);
-extern void sg_init_pipeline(sg_pipeline pip_id, const sg_pipeline_desc* desc);
-extern void sg_init_pass(sg_pass pass_id, const sg_pass_desc* desc);
-extern void sg_fail_buffer(sg_buffer buf_id);
-extern void sg_fail_image(sg_image img_id);
-extern void sg_fail_shader(sg_shader shd_id);
-extern void sg_fail_pipeline(sg_pipeline pip_id);
-extern void sg_fail_pass(sg_pass pass_id);
+/* separate resource allocation and initialization (for async setup) */
+SOKOL_API_DECL sg_buffer sg_alloc_buffer(void);
+SOKOL_API_DECL sg_image sg_alloc_image(void);
+SOKOL_API_DECL sg_shader sg_alloc_shader(void);
+SOKOL_API_DECL sg_pipeline sg_alloc_pipeline(void);
+SOKOL_API_DECL sg_pass sg_alloc_pass(void);
+SOKOL_API_DECL void sg_init_buffer(sg_buffer buf_id, const sg_buffer_desc* desc);
+SOKOL_API_DECL void sg_init_image(sg_image img_id, const sg_image_desc* desc);
+SOKOL_API_DECL void sg_init_shader(sg_shader shd_id, const sg_shader_desc* desc);
+SOKOL_API_DECL void sg_init_pipeline(sg_pipeline pip_id, const sg_pipeline_desc* desc);
+SOKOL_API_DECL void sg_init_pass(sg_pass pass_id, const sg_pass_desc* desc);
+SOKOL_API_DECL void sg_fail_buffer(sg_buffer buf_id);
+SOKOL_API_DECL void sg_fail_image(sg_image img_id);
+SOKOL_API_DECL void sg_fail_shader(sg_shader shd_id);
+SOKOL_API_DECL void sg_fail_pipeline(sg_pipeline pip_id);
+SOKOL_API_DECL void sg_fail_pass(sg_pass pass_id);
 
 /* rendering contexts (optional) */
 SOKOL_API_DECL sg_context sg_setup_context(void);
@@ -2834,6 +2841,10 @@ _SOKOL_PRIVATE void _sg_resolve_default_pass_action(const sg_pass_action* from, 
         to->stencil.val = SG_DEFAULT_CLEAR_STENCIL;
     }
 }
+
+
+
+
 
 /*== DUMMY BACKEND IMPL ======================================================*/
 #if defined(SOKOL_DUMMY_BACKEND)
@@ -5148,7 +5159,7 @@ _SOKOL_PRIVATE void _sg_update_image(_sg_image_t* img, const sg_image_content* d
 }
 
 /*== D3D11 BACKEND IMPLEMENTATION ============================================*/
-//#elif defined(SOKOL_D3D11)
+#elif defined(SOKOL_D3D11)
 
 /*-- enum translation functions ----------------------------------------------*/
 _SOKOL_PRIVATE D3D11_USAGE _sg_d3d11_usage(sg_usage usg) {
