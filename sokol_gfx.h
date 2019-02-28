@@ -1396,22 +1396,15 @@ typedef struct sg_shader_desc {
         // // 在 draw_state 里可以传递多个 buffer，这里指定每个 buffer 的数据，同时 attrs 的 buffer_index 关联到这里
         .buffers[]:         vertex buffer layouts
             .stride:        0 (if no stride is given it will be computed)
-            
             .step_func      SG_VERTEXSTEP_PER_VERTEX // 在实例化渲染中会用到
             .step_rate      1
-
         .attrs[]:           vertex attribute declarations
             .buffer_index   0 the vertex buffer bind slot
             .offset         0 (offsets can be omitted if the vertex layout has no gaps)
             .format         SG_VERTEXFORMAT_INVALID (must be initialized!)
-
-            .offset         0 (offsets can be omitted if the vertex layout has no gaps)
             .name           0 (GLES2 requires an attribute name here)
             .sem_name       0 (D3D11 requires a semantic name here)
             .sem_index      0 (D3D11 requires a semantic index here)
-
-
-
     .shader:            0 (must be intilized with a valid sg_shader id!)
     .primitive_type:    SG_PRIMITIVETYPE_TRIANGLES
     .index_type:        SG_INDEXTYPE_NONE
@@ -1653,7 +1646,6 @@ SOKOL_API_DECL void sg_apply_uniform_block(sg_shader_stage stage, int ub_index, 
 #endif
 
 /*--- IMPLEMENTATION ---------------------------------------------------------*/
-#define SOKOL_IMPL
 #ifdef SOKOL_IMPL
 #if !(defined(SOKOL_GLCORE33)||defined(SOKOL_GLES2)||defined(SOKOL_GLES3)||defined(SOKOL_D3D11)||defined(SOKOL_METAL)||defined(SOKOL_DUMMY_BACKEND))
 #error "Please select a backend with SOKOL_GLCORE33, SOKOL_GLES2, SOKOL_GLES3, SOKOL_D3D11, SOKOL_METAL or SOKOL_DUMMY_BACKEND"
