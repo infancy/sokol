@@ -1,6 +1,8 @@
-#pragma once
+#ifndef SOKOL_TIME_INCLUDED
 /*
     sokol_time.h    -- simple cross-platform time measurement
+
+    Project URL: https://github.com/floooh/sokol
 
     Do this:
         #define SOKOL_IMPL
@@ -11,6 +13,14 @@
     SOKOL_ASSERT(c)     - your own assert macro (default: assert(c))
     SOKOL_API_DECL      - public function declaration prefix (default: extern)
     SOKOL_API_IMPL      - public function implementation prefix (default: -)
+
+    If sokol_time.h is compiled as a DLL, define the following before
+    including the declaration or implementation:
+
+    SOKOL_DLL
+
+    On Windows, SOKOL_DLL will define SOKOL_API_DECL as __declspec(dllexport)
+    or __declspec(dllimport) as needed.
 
     void stm_setup();
         Call once before any other functions to initialize sokol_time
@@ -79,10 +89,17 @@
         3. This notice may not be removed or altered from any source
         distribution.
 */
+#define SOKOL_TIME_INCLUDED (1)
 #include <stdint.h>
 
 #ifndef SOKOL_API_DECL
-    #define SOKOL_API_DECL extern
+#if defined(_WIN32) && defined(SOKOL_DLL) && defined(SOKOL_IMPL)
+#define SOKOL_API_DECL __declspec(dllexport)
+#elif defined(_WIN32) && defined(SOKOL_DLL)
+#define SOKOL_API_DECL __declspec(dllimport)
+#else
+#define SOKOL_API_DECL extern
+#endif
 #endif
 
 #ifdef __cplusplus
@@ -102,9 +119,11 @@ SOKOL_API_DECL double stm_ns(uint64_t ticks);
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
+#endif // SOKOL_TIME_INCLUDED
 
 /*-- IMPLEMENTATION ----------------------------------------------------------*/
 #ifdef SOKOL_IMPL
+#define SOKOL_TIME_IMPL_INCLUDED (1)
 #include <string.h> /* memset */
 
 #ifndef SOKOL_API_IMPL
@@ -140,11 +159,16 @@ typedef struct {
     uint64_t start;
 } _stm_state_t;
 #elif defined(__EMSCRIPTEN__)
+#include <emscripten/emscripten.h>
 typedef struct {
     uint32_t initialized;
     double start;
 } _stm_state_t;
 #else /* anything else, this will need more care for non-Linux platforms */
+#ifdef ESP8266
+// On the ESP8266, clock_gettime ignores the first argument and CLOCK_MONOTONIC isn't defined
+#define CLOCK_MONOTONIC 0
+#endif
 #include <time.h>
 typedef struct {
     uint32_t initialized;
@@ -165,7 +189,7 @@ _SOKOL_PRIVATE int64_t int64_muldiv(int64_t value, int64_t numer, int64_t denom)
 #endif
 
 #if defined(__EMSCRIPTEN__)
-EM_JS(double, _stm_js_perfnow, (void), {
+EM_JS(double, stm_js_perfnow, (void), {
     return performance.now();
 });
 #endif
@@ -180,7 +204,7 @@ SOKOL_API_IMPL void stm_setup(void) {
         mach_timebase_info(&_stm.timebase);
         _stm.start = mach_absolute_time();
     #elif defined(__EMSCRIPTEN__)
-        _stm.start = _stm_js_perfnow();
+        _stm.start = stm_js_perfnow();
     #else
         struct timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -199,7 +223,7 @@ SOKOL_API_IMPL uint64_t stm_now(void) {
         const uint64_t mach_now = mach_absolute_time() - _stm.start;
         now = int64_muldiv(mach_now, _stm.timebase.numer, _stm.timebase.denom);
     #elif defined(__EMSCRIPTEN__)
-        double js_now = _stm_js_perfnow() - _stm.start;
+        double js_now = stm_js_perfnow() - _stm.start;
         SOKOL_ASSERT(js_now >= 0.0);
         now = (uint64_t) (js_now * 1000000.0);
     #else

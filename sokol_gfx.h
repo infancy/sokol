@@ -1242,7 +1242,7 @@ typedef struct sg_subimage_content {
     mipmap level.
 */
 typedef struct sg_image_content {
-    // subimage[face_index][mip_index] ÄÄ¸öÃæµÄµÚ¼¸¸ö mipmap
+    // subimage[face_index][mip_index] å“ªä¸ªé¢çš„ç¬¬å‡ ä¸ª mipmap
     sg_subimage_content subimage[SG_CUBEFACE_NUM][SG_MAX_MIPMAPS];
 } sg_image_content;
 
@@ -1392,13 +1392,13 @@ typedef struct sg_shader_desc {
 
     .layout:
         // instancing-d3d11.c
-        // **Èç¹û¶¥µãÊı¾İÖ®¼äÎŞ¿ÕÏ¶**£¬Ôò¿ÉÒÔºöÂÔ stride ºÍ offset£¬Ö»ĞèÒª¸ù¾İ¶¥µãÊôĞÔµÄÀàĞÍ¾Í¿ÉÒÔ¼ÆËãÕâÁ½Ïî
-        // ¿ÉÒÔºöÂÔ name¡¢sem_name¡¢sem_index£¬×ÅÉ«Æ÷ÓĞ¹Ì¶¨µÄÎ»ÖÃ½øĞĞ°ó¶¨ 
+        // **å¦‚æœé¡¶ç‚¹æ•°æ®ä¹‹é—´æ— ç©ºéš™**ï¼Œåˆ™å¯ä»¥å¿½ç•¥ stride å’Œ offsetï¼Œåªéœ€è¦æ ¹æ®é¡¶ç‚¹å±æ€§çš„ç±»å‹å°±å¯ä»¥è®¡ç®—è¿™ä¸¤é¡¹
+        // å¯ä»¥å¿½ç•¥ nameã€sem_nameã€sem_indexï¼Œç€è‰²å™¨æœ‰å›ºå®šçš„ä½ç½®è¿›è¡Œç»‘å®š 
 
-        // // ÔÚ draw_state Àï¿ÉÒÔ´«µİ¶à¸ö buffer£¬ÕâÀïÖ¸¶¨Ã¿¸ö buffer µÄÊı¾İ£¬Í¬Ê± attrs µÄ buffer_index ¹ØÁªµ½ÕâÀï
+        // // åœ¨ draw_state é‡Œå¯ä»¥ä¼ é€’å¤šä¸ª bufferï¼Œè¿™é‡ŒæŒ‡å®šæ¯ä¸ª buffer çš„æ•°æ®ï¼ŒåŒæ—¶ attrs çš„ buffer_index å…³è”åˆ°è¿™é‡Œ
         .buffers[]:         vertex buffer layouts
             .stride:        0 (if no stride is given it will be computed)
-            .step_func      SG_VERTEXSTEP_PER_VERTEX // ÔÚÊµÀı»¯äÖÈ¾ÖĞ»áÓÃµ½
+            .step_func      SG_VERTEXSTEP_PER_VERTEX // åœ¨å®ä¾‹åŒ–æ¸²æŸ“ä¸­ä¼šç”¨åˆ°
             .step_rate      1
         .attrs[]:           vertex attribute declarations
             .buffer_index   0 the vertex buffer bind slot
@@ -3775,7 +3775,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_buffer(_sg_buffer_t* buf, const sg_b
     buf->active_slot = 0;
     buf->ext_buffers = (0 != desc->gl_buffers[0]);
 
-    // sokol µÄ¹«¹²ÀàĞÍ×ª»»µ½ opengl µÄÀàĞÍ
+    // sokol çš„å…¬å…±ç±»å‹è½¬æ¢åˆ° opengl çš„ç±»å‹
     GLenum gl_target = _sg_gl_buffer_target(buf->type);
     GLenum gl_usage  = _sg_gl_usage(buf->usage);
 
@@ -3784,7 +3784,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_buffer(_sg_buffer_t* buf, const sg_b
         GLuint gl_buf = 0;
 
         // if 0 != desc->gl_buffers[0] ???
-        // Íâ²¿ÒÑ¾­ÓĞ vbo ÁË£¬Ö±½Ó¼ÓÔØµ½²ÛÀï
+        // å¤–éƒ¨å·²ç»æœ‰ vbo äº†ï¼Œç›´æ¥åŠ è½½åˆ°æ§½é‡Œ
         if (buf->ext_buffers) 
         {
             SOKOL_ASSERT(desc->gl_buffers[slot]);
@@ -3860,7 +3860,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
     img->max_anisotropy = _sg_def(desc->max_anisotropy, 1);
     img->upd_frame_index = 0;
 
-    // ÒÔÏÂÈı¸ö if ÅĞ¶ÏÊÇ·ñÖ§³Ö pixel formt¡¢3d texture¡¢texture array
+    // ä»¥ä¸‹ä¸‰ä¸ª if åˆ¤æ–­æ˜¯å¦æ”¯æŒ pixel formtã€3d textureã€texture array
     /* check if texture format is support */
     if (!_sg_gl_supported_texture_format(img->pixel_format)) {
         SOKOL_LOG("compressed texture format not supported by GL context\n");
@@ -3887,7 +3887,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
         msaa = (img->sample_count > 1) && (_sg.gl.features[SG_FEATURE_MSAA_RENDER_TARGETS]);
     }
     #endif
-    // Éú³É depth¡¢stencil rendertarget
+    // ç”Ÿæˆ depthã€stencil rendertarget
     if (_sg_is_valid_rendertarget_depth_format(img->pixel_format)) {
         /* special case depth-stencil-buffer? */
         SOKOL_ASSERT((img->usage == SG_USAGE_IMMUTABLE) && (img->num_slots == 1));
@@ -3914,7 +3914,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
         /* if this is a MSAA render target, need to create a separate render buffer */
         #if !defined(SOKOL_GLES2)
         if (!_sg.gl.gles2 && img->render_target && msaa) {
-            // Ê¹ÓÃÒ»¸ö multisample renderbuffer ×÷Îª rt£¬µ±ĞèÒª¶ÁÈ¡ rt Ê±£¬ÒªÏÈ½« renderbuffer µÄÄÚÈİ¸´ÖÆµ½Ò»¸öÆÕÍ¨µÄ texture ÉÏ
+            // ä½¿ç”¨ä¸€ä¸ª multisample renderbuffer ä½œä¸º rtï¼Œå½“éœ€è¦è¯»å– rt æ—¶ï¼Œè¦å…ˆå°† renderbuffer çš„å†…å®¹å¤åˆ¶åˆ°ä¸€ä¸ªæ™®é€šçš„ texture ä¸Š
             glGenRenderbuffers(1, &img->gl_msaa_render_buffer);
             glBindRenderbuffer(GL_RENDERBUFFER, img->gl_msaa_render_buffer);
             glRenderbufferStorageMultisample(GL_RENDERBUFFER, img->sample_count, gl_internal_format, img->width, img->height);
@@ -3922,7 +3922,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
         #endif
 
         if (img->ext_textures) {
-            // Ê¹ÓÃÍâ²¿ÒÑÉú³ÉµÄÎÆÀí¶ÔÏó
+            // ä½¿ç”¨å¤–éƒ¨å·²ç”Ÿæˆçš„çº¹ç†å¯¹è±¡
             /* inject externally GL textures */
             for (int slot = 0; slot < img->num_slots; slot++) {
                 SOKOL_ASSERT(desc->gl_textures[slot]);
@@ -3982,9 +3982,9 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
 
                 const int num_faces = img->type == SG_IMAGETYPE_CUBE ? 6 : 1;
                 int data_index = 0;
-                // ¼ÓÔØÊı¾İ
+                // åŠ è½½æ•°æ®
                 for (int face_index = 0; face_index < num_faces; face_index++) {
-                    // Ê¹ÓÃÔ¤ÏÈÉú³ÉµÄ mipmaps
+                    // ä½¿ç”¨é¢„å…ˆç”Ÿæˆçš„ mipmaps
                     for (int mip_index = 0; mip_index < img->num_mipmaps; mip_index++, data_index++) 
                     {
                         GLenum gl_img_target = img->gl_target;
@@ -4129,7 +4129,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_shader(_sg_shader_t* shd, const sg_s
         _sg_shader_stage_t* stage = &shd->stage[stage_index];
         SOKOL_ASSERT(stage->num_uniform_blocks == 0);
 
-        // ¼ÆËãÄ³¸ö stage ÀïµÄËùÓĞ uniform_blocks
+        // è®¡ç®—æŸä¸ª stage é‡Œçš„æ‰€æœ‰ uniform_blocks
         for (int ub_index = 0; ub_index < SG_MAX_SHADERSTAGE_UBS; ub_index++) 
         {
             const sg_shader_uniform_block_desc* ub_desc = &stage_desc->uniform_blocks[ub_index];
@@ -4141,7 +4141,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_shader(_sg_shader_t* shd, const sg_s
             SOKOL_ASSERT(ub->num_uniforms == 0);
             int cur_uniform_offset = 0;
 
-            // ¼ÆËãÄ³¸ö uniform_blocks µÄËùÓĞ uniform ±äÁ¿
+            // è®¡ç®—æŸä¸ª uniform_blocks çš„æ‰€æœ‰ uniform å˜é‡
             for (int u_index = 0; u_index < SG_MAX_UB_MEMBERS; u_index++) 
             {
                 const sg_shader_uniform_desc* u_desc = &ub_desc->uniforms[u_index];
@@ -4156,7 +4156,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_shader(_sg_shader_t* shd, const sg_s
                 cur_uniform_offset += _sg_uniform_size(u->type, u->count);
                 if (u_desc->name) 
                 {
-                    // »ñµÃµØÖ·£¬¸³Óè gl_shader
+                    // è·å¾—åœ°å€ï¼Œèµ‹äºˆ gl_shader
                     u->gl_loc = glGetUniformLocation(gl_prog, u_desc->name);
                 }
                 else {
@@ -4190,7 +4190,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_shader(_sg_shader_t* shd, const sg_s
             img->gl_loc = img_index;
             if (img_desc->name) 
             {
-                // »ñµÃÎÆÀíµØÖ·
+                // è·å¾—çº¹ç†åœ°å€
                 img->gl_loc = glGetUniformLocation(gl_prog, img_desc->name);
             }
             if (img->gl_loc != -1) {
@@ -4265,7 +4265,7 @@ _SOKOL_PRIVATE void _sg_gl_load_rasterizer(const sg_rasterizer_state* src, sg_ra
 _SOKOL_PRIVATE sg_resource_state _sg_create_pipeline(_sg_pipeline_t* pip, _sg_shader_t* shd, const sg_pipeline_desc* desc) {
     SOKOL_ASSERT(pip && shd && desc);
     SOKOL_ASSERT(!pip->shader && pip->shader_id.id == SG_INVALID_ID);
-    SOKOL_ASSERT(desc->shader.id == shd->slot.id); // slot.id ¼ÇÂ¼µÄÊÇÔÚ¶ÔÓ¦ pool ÀïµÄÎ»ÖÃ
+    SOKOL_ASSERT(desc->shader.id == shd->slot.id); // slot.id è®°å½•çš„æ˜¯åœ¨å¯¹åº” pool é‡Œçš„ä½ç½®
     SOKOL_ASSERT(shd->gl_prog);
 
     pip->shader = shd;
@@ -4287,7 +4287,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_pipeline(_sg_pipeline_t* pip, _sg_sh
         auto_offset[layout_index] = 0;
     }
     bool use_auto_offset = true;
-    // OpenGL ÊÇ·ñÄÜ×Ô¶¯¼ÆËã¶¥µãÊôĞÔµÄÆ«ÒÆÁ¿
+    // OpenGL æ˜¯å¦èƒ½è‡ªåŠ¨è®¡ç®—é¡¶ç‚¹å±æ€§çš„åç§»é‡
     for (int attr_index = 0; attr_index < SG_MAX_VERTEX_ATTRIBUTES; attr_index++) 
     {
         pip->gl_attrs[attr_index].vb_index = -1;
@@ -4298,7 +4298,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_pipeline(_sg_pipeline_t* pip, _sg_sh
         }
     }
 
-    // layout.attrs.buffer_index Ê¹µÃÕâÀïÖ»ĞèÒªÒ»Î¬µÄ for Ñ­»·¾Í¿ÉÒÔÁË
+    // layout.attrs.buffer_index ä½¿å¾—è¿™é‡Œåªéœ€è¦ä¸€ç»´çš„ for å¾ªç¯å°±å¯ä»¥äº†
     for (int attr_index = 0; attr_index < SG_MAX_VERTEX_ATTRIBUTES; attr_index++) 
     {
         // why not a_desc -> attr_desc
@@ -4312,7 +4312,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_pipeline(_sg_pipeline_t* pip, _sg_sh
         const sg_vertex_step step_func = _sg_def(l_desc->step_func, SG_VERTEXSTEP_PER_VERTEX);
         const int step_rate = _sg_def(l_desc->step_rate, 1);
 
-        // Èç¹ûÊäÈëÁËÕâ¸ö¶¥µãÊôĞÔµÄÃû×Ö¾ÍÈ¥²éÕÒ£¬·ñÔòÄ¬ÈÏ°´ 0¡¢1¡¢2 Ôö³¤Î»ÖÃ
+        // å¦‚æœè¾“å…¥äº†è¿™ä¸ªé¡¶ç‚¹å±æ€§çš„åå­—å°±å»æŸ¥æ‰¾ï¼Œå¦åˆ™é»˜è®¤æŒ‰ 0ã€1ã€2 å¢é•¿ä½ç½®
         GLint attr_loc = attr_index;
         if (a_desc->name) {
             attr_loc = glGetAttribLocation(pip->shader->gl_prog, a_desc->name);
@@ -4335,7 +4335,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_pipeline(_sg_pipeline_t* pip, _sg_sh
             gl_attr->offset = use_auto_offset ? auto_offset[a_desc->buffer_index] : a_desc->offset;
             gl_attr->size = (uint8_t) _sg_gl_vertexformat_size(a_desc->format);
             gl_attr->type = _sg_gl_vertexformat_type(a_desc->format);
-            gl_attr->normalized = _sg_gl_vertexformat_normalized(a_desc->format); // ÓĞ¼¸ÖÖÀàĞÍÊÇĞèÒª¹éÒ»»¯µÄ
+            gl_attr->normalized = _sg_gl_vertexformat_normalized(a_desc->format); // æœ‰å‡ ç§ç±»å‹æ˜¯éœ€è¦å½’ä¸€åŒ–çš„
             pip->vertex_layout_valid[a_desc->buffer_index] = true; // for check
         }
         else {
@@ -4348,7 +4348,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_pipeline(_sg_pipeline_t* pip, _sg_sh
     /* fill computed vertex strides that haven't been explicitely provided */
     for (int attr_index = 0; attr_index < SG_MAX_VERTEX_ATTRIBUTES; attr_index++) {
         _sg_gl_attr_t* gl_attr = &pip->gl_attrs[attr_index];
-        // ¼ÆËãÎ´ÉùÃ÷ stride ´óĞ¡µÄ attr.stride 
+        // è®¡ç®—æœªå£°æ˜ stride å¤§å°çš„ attr.stride 
         if ((gl_attr->vb_index != -1) && (0 == gl_attr->stride)) {
             gl_attr->stride = (uint8_t) auto_offset[gl_attr->vb_index];
         }
@@ -4935,14 +4935,14 @@ _SOKOL_PRIVATE void _sg_apply_bindings(
     /* vertex attributes */
     for (int attr_index = 0; attr_index < SG_MAX_VERTEX_ATTRIBUTES; attr_index++) {
         _sg_gl_attr_t* attr = &pip->gl_attrs[attr_index];
-        _sg_gl_cache_attr_t* cache_attr = &_sg.gl.cache.attrs[attr_index]; // Ê²Ã´Ê±ºò¼Ó½øÈ¥µÄ£¿£¿£¿now
+        _sg_gl_cache_attr_t* cache_attr = &_sg.gl.cache.attrs[attr_index]; // ä»€ä¹ˆæ—¶å€™åŠ è¿›å»çš„ï¼Ÿï¼Ÿï¼Ÿnow
         bool cache_attr_dirty = false;
         int vb_offset = 0;
         GLuint gl_vb = 0;
         if (attr->vb_index >= 0) {
             /* attribute is enabled */
             SOKOL_ASSERT(attr->vb_index < num_vbs);
-            // ÓÃ vb_index Ñ¡Ôñ bind µ½ÄÄÒ»¸ö buffer
+            // ç”¨ vb_index é€‰æ‹© bind åˆ°å“ªä¸€ä¸ª buffer
             _sg_buffer_t* vb = vbs[attr->vb_index];
             SOKOL_ASSERT(vb);
             gl_vb = vb->gl_buf[vb->active_slot];
@@ -5530,7 +5530,7 @@ _SOKOL_PRIVATE void _sg_destroy_buffer(_sg_buffer_t* buf) {
     }
 }
 
-// ÅäÖÃÔ¤ÏÈÉú³ÉµÄ mipmap
+// é…ç½®é¢„å…ˆç”Ÿæˆçš„ mipmap
 _SOKOL_PRIVATE void _sg_d3d11_fill_subres_data(const _sg_image_t* img, const sg_image_content* content) 
 {
     const int num_faces = (img->type == SG_IMAGETYPE_CUBE) ? 6:1;
