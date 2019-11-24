@@ -5,6 +5,8 @@
 // #define SOKOL_DUMMY_BACKEND
 // #define SOKOL_GLCORE33
 #define SOKOL_D3D11
+#define SOKOL_D3D11_SHADER_COMPILER
+
 /*
     sokol_gfx.h -- simple 3D API wrapper
 
@@ -1240,7 +1242,7 @@ typedef struct sg_subimage_content {
     mipmap level.
 */
 typedef struct sg_image_content {
-    // subimage[face_index][mip_index] 那个面的第几个 mipmaps
+    // subimage[face_index][mip_index] 哪个面的第几个 mipmap
     sg_subimage_content subimage[SG_CUBEFACE_NUM][SG_MAX_MIPMAPS];
 } sg_image_content;
 
@@ -3982,7 +3984,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_image(_sg_image_t* img, const sg_ima
                 int data_index = 0;
                 // 加载数据
                 for (int face_index = 0; face_index < num_faces; face_index++) {
-                    // 手动生成 mipmaps
+                    // 使用预先生成的 mipmaps
                     for (int mip_index = 0; mip_index < img->num_mipmaps; mip_index++, data_index++) 
                     {
                         GLenum gl_img_target = img->gl_target;
@@ -5153,6 +5155,8 @@ _SOKOL_PRIVATE void _sg_update_image(_sg_image_t* img, const sg_image_content* d
 /*== D3D11 BACKEND IMPLEMENTATION ============================================*/
 #elif defined(SOKOL_D3D11)
 
+
+
 /*-- enum translation functions ----------------------------------------------*/
 _SOKOL_PRIVATE D3D11_USAGE _sg_d3d11_usage(sg_usage usg) {
     switch (usg) {
@@ -5526,28 +5530,42 @@ _SOKOL_PRIVATE void _sg_destroy_buffer(_sg_buffer_t* buf) {
     }
 }
 
-_SOKOL_PRIVATE void _sg_d3d11_fill_subres_data(const _sg_image_t* img, const sg_image_content* content) {
+// 配置预先生成的 mipmap
+_SOKOL_PRIVATE void _sg_d3d11_fill_subres_data(const _sg_image_t* img, const sg_image_content* content) 
+{
     const int num_faces = (img->type == SG_IMAGETYPE_CUBE) ? 6:1;
     const int num_slices = (img->type == SG_IMAGETYPE_ARRAY) ? img->depth:1;
+
     int subres_index = 0;
-    for (int face_index = 0; face_index < num_faces; face_index++) {
-        for (int slice_index = 0; slice_index < num_slices; slice_index++) {
-            for (int mip_index = 0; mip_index < img->num_mipmaps; mip_index++, subres_index++) {
+    for (int face_index = 0; face_index < num_faces; face_index++) 
+    {
+        for (int slice_index = 0; slice_index < num_slices; slice_index++) 
+        {
+            for (int mip_index = 0; mip_index < img->num_mipmaps; mip_index++, subres_index++) 
+            {
                 SOKOL_ASSERT(subres_index < (SG_MAX_MIPMAPS * SG_MAX_TEXTUREARRAY_LAYERS));
+
                 D3D11_SUBRESOURCE_DATA* subres_data = &_sg.d3d11.subres_data[subres_index];
+
                 const int mip_width = ((img->width>>mip_index)>0) ? img->width>>mip_index : 1;
                 const int mip_height = ((img->height>>mip_index)>0) ? img->height>>mip_index : 1;
+
                 const sg_subimage_content* subimg_content = &(content->subimage[face_index][mip_index]);
+
                 const int slice_size = subimg_content->size / num_slices;
                 const int slice_offset = slice_size * slice_index;
+
                 const uint8_t* ptr = (const uint8_t*) subimg_content->ptr;
+                
                 subres_data->pSysMem = ptr + slice_offset;
                 subres_data->SysMemPitch = _sg_row_pitch(img->pixel_format, mip_width);
-                if (img->type == SG_IMAGETYPE_3D) {
+                if (img->type == SG_IMAGETYPE_3D) 
+                {
                     /* FIXME? const int mip_depth = ((img->depth>>mip_index)>0) ? img->depth>>mip_index : 1; */
                     subres_data->SysMemSlicePitch = _sg_surface_pitch(img->pixel_format, mip_width, mip_height);
                 }
-                else {
+                else 
+                {
                     subres_data->SysMemSlicePitch = 0;
                 }
             }
@@ -5959,9 +5977,11 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_pipeline(_sg_pipeline_t* pip, _sg_sh
             break;
         }
         SOKOL_ASSERT((a_desc->buffer_index >= 0) && (a_desc->buffer_index < SG_MAX_SHADERSTAGE_BUFFERS));
+
         const sg_buffer_layout_desc* l_desc = &desc->layout.buffers[a_desc->buffer_index];
         const sg_vertex_step step_func = _sg_def(l_desc->step_func, SG_VERTEXSTEP_PER_VERTEX);
         const int step_rate = _sg_def(l_desc->step_rate, 1);
+
         D3D11_INPUT_ELEMENT_DESC* d3d11_comp = &d3d11_comps[attr_index];
         d3d11_comp->SemanticName = a_desc->sem_name;
         d3d11_comp->SemanticIndex = a_desc->sem_index;
@@ -5975,6 +5995,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_create_pipeline(_sg_pipeline_t* pip, _sg_sh
         auto_offset[a_desc->buffer_index] += _sg_vertexformat_bytesize(a_desc->format);
         pip->vertex_layout_valid[a_desc->buffer_index] = true;
     }
+    
     for (int layout_index = 0; layout_index < SG_MAX_SHADERSTAGE_BUFFERS; layout_index++) {
         if (pip->vertex_layout_valid[layout_index]) {
             const sg_buffer_layout_desc* l_desc = &desc->layout.buffers[layout_index];

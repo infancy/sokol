@@ -1,4 +1,10 @@
 #pragma once
+
+#define SOKOL_IMPL
+#define SOKOL_D3D11
+#define SOKOL_D3D11_SHADER_COMPILER
+#define SOKOL_LOG(s) OutputDebugStringA(s)
+
 /*
     sokol_app.h -- cross-platform application wrapper
 
